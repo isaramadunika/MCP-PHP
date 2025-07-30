@@ -1,43 +1,51 @@
 <?php
 
 // Public entry point for Railway deployment
-// This file is served by Apache and routes MCP requests
+// This file is served and routes MCP requests
 
-// Set up autoloader
-require_once __DIR__ . '/../vendor/autoload.php';
-
-// Enable error logging
-error_reporting(E_ALL);
-ini_set('display_errors', 0);
-ini_set('log_errors', 1);
+// Basic error handling - always respond to requests
+try {
+    // Set up autoloader
+    require_once __DIR__ . '/../vendor/autoload.php';
+} catch (Exception $e) {
+    // If autoloader fails, still respond
+    error_log("Autoloader failed: " . $e->getMessage());
+    header('Content-Type: application/json');
+    http_response_code(500);
+    echo json_encode(['error' => 'Autoloader failed', 'message' => $e->getMessage()]);
+    exit;
+}
 
 // Get request details
 $requestUri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
 $requestMethod = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
 
-// Log request for debugging
-error_log("Railway MCP Request: {$requestMethod} {$requestUri} Content-Type: {$contentType}");
+// Always log requests for debugging
+error_log("Railway Request: {$requestMethod} {$requestUri} Content-Type: {$contentType}");
 
-// Handle CORS preflight
+// Handle CORS preflight - respond immediately
 if ($requestMethod === 'OPTIONS') {
     header('Access-Control-Allow-Origin: *');
     header('Access-Control-Allow-Methods: POST, GET, OPTIONS');
     header('Access-Control-Allow-Headers: Content-Type');
     http_response_code(200);
+    echo 'OK';
     exit;
 }
 
-// Health check endpoints
+// Health check endpoints - respond immediately 
 if ($requestUri === '/health' || $requestUri === '/ping') {
     header('Content-Type: application/json');
+    http_response_code(200);
     echo json_encode([
         'status' => 'healthy',
         'timestamp' => date('c'),
         'php_version' => PHP_VERSION,
         'mcp_ready' => class_exists('Mcp\Server\Server'),
         'request_method' => $requestMethod,
-        'request_uri' => $requestUri
+        'request_uri' => $requestUri,
+        'server_time' => time()
     ]);
     exit;
 }
@@ -57,6 +65,7 @@ if ($isMcpRequest) {
     
     try {
         require_once __DIR__ . '/../mcp_server.php';
+        exit;
     } catch (Exception $e) {
         error_log("MCP Server Error: " . $e->getMessage());
         header('Content-Type: application/json');
@@ -66,11 +75,12 @@ if ($isMcpRequest) {
             'message' => $e->getMessage(),
             'timestamp' => date('c')
         ]);
+        exit;
     }
-    exit;
 }
 
-// For non-MCP requests, show status page
+// For ALL other requests, show status page (including root /)
+try {
 ?>
 <!DOCTYPE html>
 <html>
@@ -160,3 +170,15 @@ if ($isMcpRequest) {
     </div>
 </body>
 </html>
+<?php
+} catch (Exception $e) {
+    // If HTML fails, send simple response
+    error_log("HTML generation failed: " . $e->getMessage());
+    header('Content-Type: text/plain');
+    http_response_code(200);
+    echo "MCP PHP Server is running!\n";
+    echo "Status: OK\n";
+    echo "Time: " . date('c') . "\n";
+    echo "PHP: " . PHP_VERSION . "\n";
+}
+?>
