@@ -1,0 +1,5 @@
+[29-Jul-2025 09:28:08 Europe/Berlin] PHP Warning:  require(vendor/autoload.php): Failed to open stream: No such file or directory in C:\Users\shard\OneDrive - NSBM\Desktop\PHP MCP\mcp-sdk-php\examples\client_stdio.php on line 12
+[29-Jul-2025 09:28:08 Europe/Berlin] PHP Fatal error:  Uncaught Error: Failed opening required 'vendor/autoload.php' (include_path='C:\xampp\php\PEAR') in C:\Users\shard\OneDrive - NSBM\Desktop\PHP MCP\mcp-sdk-php\examples\client_stdio.php:12
+Stack trace:
+#0 {main}
+  thrown in C:\Users\shard\OneDrive - NSBM\Desktop\PHP MCP\mcp-sdk-php\examples\client_stdio.php on line 12
