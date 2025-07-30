@@ -14,6 +14,16 @@ chmod 755 mcp_sessions
 
 echo "✅ Session directory ready"
 
-# Start PHP built-in server
+# Display environment info
+echo "🔍 Environment info:"
+echo "   PHP Version: $(php --version | head -n 1)"
+echo "   Working Directory: $(pwd)"
+echo "   Files: $(ls -la | wc -l) files"
+
+# Start PHP built-in server with better error handling
 echo "🌐 Starting PHP server on 0.0.0.0:$PORT"
-exec php -S 0.0.0.0:$PORT -t . index.php
+echo "🔗 Server will be available at: https://mcp-php-php-mcp.up.railway.app"
+echo "🔌 MCP Endpoint: https://mcp-php-php-mcp.up.railway.app/mcp"
+
+# Use a more robust PHP server command with router
+exec php -S 0.0.0.0:$PORT -t . -d display_errors=1 -d log_errors=1 router.php
