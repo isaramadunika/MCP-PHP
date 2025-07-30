@@ -2,14 +2,12 @@
 
 // HTTP MCP Server for Railway deployment
 
-// Enable CORS for cross-origin requests
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: POST, GET, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
-header('Content-Type: application/json');
-
-// Handle preflight OPTIONS requests
+// Don't send headers immediately - let the MCP server handle them
+// Only handle OPTIONS requests for CORS
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    header('Access-Control-Allow-Origin: *');
+    header('Access-Control-Allow-Methods: POST, GET, OPTIONS');
+    header('Access-Control-Allow-Headers: Content-Type');
     http_response_code(200);
     exit;
 }
@@ -319,33 +317,62 @@ try {
         throw new \InvalidArgumentException("Unknown tool: {$toolName}");
     });
 
-    // Configure HTTP options
+    // Configure HTTP options for Railway
     $httpOptions = [
-        'session_timeout' => 1800, // 30 minutes
-        'max_queue_size' => 500,   // Smaller queue for shared hosting
-        'enable_sse' => false,     // No SSE for compatibility
-        'shared_hosting' => true,  // Assume shared hosting for max compatibility
-        'server_header' => 'MCP-PHP-Server/1.0',
+        'session_timeout' => 300,    // 5 minutes for faster cleanup
+        'max_queue_size' => 100,     // Smaller queue for Railway
+        'enable_sse' => false,       // Disable SSE for Railway compatibility
+        'shared_hosting' => false,   // Railway is not shared hosting
+        'server_header' => 'MCP-PHP-Railway/1.0',
     ];
 
+    // Create session store directory if it doesn't exist
+    $sessionDir = __DIR__ . '/mcp_sessions';
+    if (!is_dir($sessionDir)) {
+        mkdir($sessionDir, 0755, true);
+    }
+
     // Create the adapter and handle the request
-    // 1) Create a file-based store
-    $fileStore = new FileSessionStore(__DIR__ . '/mcp_sessions'); 
-    
-    // 2) Create a runner that uses that store
-    $runner = new HttpServerRunner($server, $server->createInitializationOptions(), $httpOptions, null, $fileStore);
-    
-    // 3) Create a StandardPhpAdapter and pass your runner in directly
-    $adapter = new StandardPhpAdapter($runner);
-    
-    // 4) Handle the request
-    $adapter->handle();
+    try {
+        // 1) Create a file-based store
+        $fileStore = new FileSessionStore($sessionDir); 
+        
+        // 2) Create a runner that uses that store
+        $runner = new HttpServerRunner($server, $server->createInitializationOptions(), $httpOptions, null, $fileStore);
+        
+        // 3) Create a StandardPhpAdapter and pass your runner in directly
+        $adapter = new StandardPhpAdapter($runner);
+        
+        // 4) Set CORS headers before handling
+        header('Access-Control-Allow-Origin: *');
+        header('Access-Control-Allow-Methods: POST, GET, OPTIONS');
+        header('Access-Control-Allow-Headers: Content-Type');
+        
+        // 5) Handle the request
+        $adapter->handle();
+        
+    } catch (\Exception $e) {
+        // Log error but don't expose details in production
+        error_log("MCP Server Error: " . $e->getMessage());
+        
+        header('Content-Type: application/json');
+        http_response_code(500);
+        echo json_encode([
+            'error' => 'Internal Server Error',
+            'message' => 'MCP server encountered an error',
+            'timestamp' => date('c')
+        ]);
+    }
 
 } catch (\Exception $e) {
+    // Outer exception handler for server setup errors
+    error_log("MCP Server Setup Error: " . $e->getMessage());
+    
+    header('Content-Type: application/json');
     http_response_code(500);
     echo json_encode([
-        'error' => 'Internal Server Error',
-        'message' => $e->getMessage(),
-        'trace' => $e->getTraceAsString()
+        'error' => 'Server Setup Error',
+        'message' => 'Failed to initialize MCP server',
+        'timestamp' => date('c')
     ]);
 }

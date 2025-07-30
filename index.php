@@ -3,27 +3,44 @@
 // Entry point for Railway deployment
 // This file routes all MCP requests to the HTTP server
 
-// Enable error reporting for debugging (disable in production)
-if (getenv('MCP_DEBUG') === 'true') {
-    error_reporting(E_ALL);
-    ini_set('display_errors', 1);
-}
+// Enable error logging but not display for production
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
 
 // Get request details
 $requestUri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
 $requestMethod = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+$contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+
+// Log request for debugging
+error_log("Railway MCP Request: {$requestMethod} {$requestUri} Content-Type: {$contentType}");
 
 // Check if this is an MCP request
 $isMcpRequest = (
     $requestMethod === 'POST' || 
     $requestUri === '/mcp' || 
-    strpos($_SERVER['CONTENT_TYPE'] ?? '', 'application/json') !== false ||
-    strpos($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json') !== false
+    strpos($contentType, 'application/json') !== false ||
+    strpos($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json') !== false ||
+    !empty(file_get_contents('php://input')) // Has JSON body
 );
 
 // Route MCP requests to the HTTP server
 if ($isMcpRequest) {
+    error_log("Routing to MCP server...");
     require_once __DIR__ . '/http_mcp_server.php';
+    exit;
+}
+
+// Handle health check for Railway
+if ($requestUri === '/health' || $requestUri === '/ping') {
+    header('Content-Type: application/json');
+    echo json_encode([
+        'status' => 'healthy',
+        'timestamp' => date('c'),
+        'php_version' => PHP_VERSION,
+        'mcp_ready' => class_exists('Mcp\Server\Server')
+    ]);
     exit;
 }
 
