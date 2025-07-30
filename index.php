@@ -3,12 +3,27 @@
 // Entry point for Railway deployment
 // This file routes all MCP requests to the HTTP server
 
-// Check if this is an MCP request
+// Enable error reporting for debugging (disable in production)
+if (getenv('MCP_DEBUG') === 'true') {
+    error_reporting(E_ALL);
+    ini_set('display_errors', 1);
+}
+
+// Get request details
 $requestUri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
+$requestMethod = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+
+// Check if this is an MCP request
+$isMcpRequest = (
+    $requestMethod === 'POST' || 
+    $requestUri === '/mcp' || 
+    strpos($_SERVER['CONTENT_TYPE'] ?? '', 'application/json') !== false ||
+    strpos($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json') !== false
+);
 
 // Route MCP requests to the HTTP server
-if ($requestUri === '/' || $requestUri === '/mcp' || strpos($requestUri, '/mcp') !== false) {
-    require_once 'http_mcp_server.php';
+if ($isMcpRequest) {
+    require_once __DIR__ . '/http_mcp_server.php';
     exit;
 }
 
